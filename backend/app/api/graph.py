@@ -482,17 +482,6 @@ def _build_graph_impl():
     try:
         logger.info("=== 开始构建图谱 ===")
         
-        # 检查配置
-        errors = []
-        if not Config.ZEP_API_KEY:
-            errors.append(t('api.zepApiKeyMissing'))
-        if errors:
-            logger.error(f"配置错误: {errors}")
-            return jsonify({
-                "success": False,
-                "error": t('api.configError', details="; ".join(errors))
-            }), 500
-        
         # 解析请求
         data = request.get_json() or {}
         project_id = data.get('project_id')
@@ -660,8 +649,8 @@ def _build_graph_impl():
                 )
                 
                 # 创建图谱构建服务
-                builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
-                
+                builder = GraphBuilderService()
+
                 # 分块
                 task_manager.update_task(
                     task_id,
@@ -882,20 +871,14 @@ def get_graph_data(graph_id: str):
     获取图谱数据（节点和边）
     """
     try:
-        if not Config.ZEP_API_KEY:
-            return jsonify({
-                "success": False,
-                "error": t('api.zepApiKeyMissing')
-            }), 500
-        
-        builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
+        builder = GraphBuilderService()
         graph_data = builder.get_graph_data(graph_id)
-        
+
         return jsonify({
             "success": True,
             "data": graph_data
         })
-        
+
     except Exception as e:
         return jsonify({
             "success": False,
@@ -907,46 +890,11 @@ def get_graph_data(graph_id: str):
 @graph_bp.route('/delete/<graph_id>', methods=['DELETE'])
 def delete_graph(graph_id: str):
     """
-    删除Zep图谱
+    删除本地图谱
     """
     try:
-        if not Config.ZEP_API_KEY:
-            return jsonify({
-                "success": False,
-                "error": t('api.zepApiKeyMissing')
-            }), 500
-        
-        projects = ProjectManager.find_projects_by_graph_id(graph_id)
-        if not projects:
-            return jsonify({
-                "success": False,
-                "error": "No local project references this graph"
-            }), 404
-        project_ids = sorted({project.project_id for project in projects})
-        with ExitStack() as stack:
-            for project_id in project_ids:
-                stack.enter_context(_project_build_lock(project_id))
-            stack.enter_context(graph_lifecycle_lock(graph_id))
-
-            # Re-read under all owning project locks so a concurrent build
-            # claim cannot appear between validation and Cloud deletion.
-            projects = ProjectManager.find_projects_by_graph_id(graph_id)
-            if any(_project_has_active_build(project) for project in projects):
-                return jsonify({
-                    "success": False,
-                    "error": t('api.graphBuilding')
-                }), 409
-
-            _delete_cloud_graph_if_present(graph_id)
-
-            for project in projects:
-                _clear_project_graph_reference(project)
-                project.status = (
-                    ProjectStatus.ONTOLOGY_GENERATED
-                    if project.ontology
-                    else ProjectStatus.CREATED
-                )
-                ProjectManager.save_project(project)
+        builder = GraphBuilderService()
+        builder.delete_graph(graph_id)
         
         return jsonify({
             "success": True,
