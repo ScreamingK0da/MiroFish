@@ -1,0 +1,16 @@
+/**
+ * Common Layout Styles
+ *
+ * Shared layout styles for view components across multiple views.
+ * Used by: InteractionView, MainView, ReportView, SimulationRunView, SimulationView
+ */
+
+/* Main View Container */
+.main-view {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #FFF;
+  overflow: hidden;
+  font-family: 'Space Grotesk', 'Noto Sans SC', system-ui, sans-serif;
+}
